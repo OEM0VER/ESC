@@ -55,6 +55,60 @@ def check_for_updates():
     else:
         print("Failed to check for updates.")
 
+def move_updated_executable(version):
+    # Use the script directory for where we want to move the executable
+    current_dir = get_script_directory()
+    new_executable_name = f"Emilys_Cleaning_Hub_{version}.exe"  # Versioned executable name
+    new_executable_path = os.path.join(current_dir, new_executable_name)
+
+    # The folder where the update was extracted (the downloads folder)
+    extracted_folder = DOWNLOAD_FOLDER  # Or wherever the extraction happens
+    downloaded_executable_name = f"Emilys_Cleaning_Hub_{version}.exe"  # The correct versioned executable name
+    downloaded_executable_path = os.path.join(extracted_folder, downloaded_executable_name)
+
+    # Delete old versions
+    delete_old_versions(current_dir, version)
+
+    # Check if the downloaded executable exists and move it
+    if os.path.exists(downloaded_executable_path):
+        shutil.move(downloaded_executable_path, new_executable_path)
+        print(f"Moved {downloaded_executable_path} to {new_executable_path}.")
+        return new_executable_path  # Return the new executable path
+    else:
+        print(f"Downloaded executable not found at {downloaded_executable_path}, cannot move.")
+        return None  # Return None if not found
+
+def delete_old_versions(directory, current_version):
+    """Delete all old .exe versions except the current version."""
+    for file_name in os.listdir(directory):
+        # Check if the file starts with "Emilys_Cleaning_Hub" and ends with ".exe"
+        if file_name.startswith("Emilys_Cleaning_Hub") and file_name.endswith(".exe"):
+            version_in_file = None
+
+            # Handle the case with version number (e.g., "Emilys_Cleaning_Hub_v1.1.exe")
+            if "_" in file_name:
+                version_in_file = file_name.split("_")[-1].replace(".exe", "")
+            else:
+                # Handle the case without a version number (e.g., "Emilys_Cleaning_Hub.exe")
+                version_in_file = "no_version"
+
+            # Delete files that are either old versioned files or the unversioned file
+            if version_in_file != current_version and version_in_file != "no_version":
+                old_file_path = os.path.join(directory, file_name)
+                try:
+                    os.remove(old_file_path)
+                    print(f"Deleted old version: {old_file_path}")
+                except Exception as e:
+                    print(f"Failed to delete {old_file_path}: {e}")
+            elif version_in_file == "no_version":
+                # Remove the unversioned file "Emilys_Cleaning_Hub.exe" if it exists
+                old_file_path = os.path.join(directory, file_name)
+                try:
+                    os.remove(old_file_path)
+                    print(f"Deleted old unversioned executable: {old_file_path}")
+                except Exception as e:
+                    print(f"Failed to delete {old_file_path}: {e}")
+
 def download_and_install_update(download_url, version):
     # Create the download folder if it doesn't exist
     if not os.path.exists(DOWNLOAD_FOLDER):
@@ -71,33 +125,18 @@ def download_and_install_update(download_url, version):
     # Extract the update
     extract_update(zip_file_path)
 
-    # Delete the ZIP file after extraction
-    if os.path.exists(zip_file_path):
-        os.remove(zip_file_path)
-        print(f"Deleted the update ZIP file: {zip_file_path}")
-
     # Rename and move the new executable to the app's directory
     new_executable_path = move_updated_executable(version)
 
+    # Delete the zip file after extraction and installation
+    try:
+        os.remove(zip_file_path)
+        print(f"Deleted update zip file: {zip_file_path}")
+    except Exception as e:
+        print(f"Failed to delete zip file {zip_file_path}: {e}")
+
     # Restart the app with the new executable path
     restart_app(new_executable_path)
-
-def move_updated_executable(version):
-    script_directory = get_script_directory()  # Use the new function to get the script's directory
-    new_executable_name = f"Emilys_Cleaning_Hub_{version}.exe"
-    new_executable_path = os.path.join(script_directory, new_executable_name)
-
-    # Move the new executable from the updates folder to the script's directory
-    downloaded_executable_path = os.path.join(DOWNLOAD_FOLDER, "Emilys_Cleaning_Hub.exe")  # Adjust this if necessary
-
-    # Check if the downloaded executable exists and move it
-    if os.path.exists(downloaded_executable_path):
-        shutil.move(downloaded_executable_path, new_executable_path)
-        print(f"Moved {downloaded_executable_path} to {new_executable_path}.")
-        return new_executable_path  # Return the new executable path
-    else:
-        print("Downloaded executable not found, cannot move.")
-        return None  # Return None if not found
 
 def extract_update(zip_file_path):
     # Unzip the update
