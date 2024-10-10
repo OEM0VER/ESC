@@ -11,6 +11,130 @@ import os
 import uuid
 import configparser
 from tkinter import filedialog
+import shutil
+import sys
+import subprocess
+import zipfile
+
+# Constants
+GITHUB_API_URL = "https://api.github.com/repos/OEM0VER/ESC/releases/latest"
+CURRENT_VERSION = "v1.1"
+DOWNLOAD_FOLDER = "updates"  # Folder to store downloaded files
+
+def get_script_directory():
+    if getattr(sys, 'frozen', False):
+        # The script is bundled into an executable
+        return os.path.abspath(os.path.dirname(sys.executable))
+    else:
+        # The script is run directly
+        return os.path.abspath(os.path.dirname(__file__))
+
+def show_info_message(message):
+    """Display a message box with the given message."""
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+    messagebox.showinfo("Update Info", message)  # Show the message box
+    root.destroy()  # Close the root window
+
+def check_for_updates():
+    # Get the latest release from GitHub
+    response = requests.get(GITHUB_API_URL)
+    
+    if response.status_code == 200:
+        latest_release = response.json()
+        latest_version = latest_release["tag_name"]
+
+        # Compare versions
+        if latest_version > CURRENT_VERSION:
+            print(f"New version available: {latest_version}. Downloading update...")
+            download_url = latest_release["assets"][0]["browser_download_url"]
+            show_info_message(f"Downloading update: {latest_version}...")  # Show info message
+            download_and_install_update(download_url, latest_version)
+        else:
+            print("You are using the latest version.")
+    else:
+        print("Failed to check for updates.")
+
+def download_and_install_update(download_url, version):
+    # Create the download folder if it doesn't exist
+    if not os.path.exists(DOWNLOAD_FOLDER):
+        os.makedirs(DOWNLOAD_FOLDER)
+
+    zip_file_path = os.path.join(DOWNLOAD_FOLDER, f"app_update_{version}.zip")
+
+    # Download the update
+    response = requests.get(download_url)
+    with open(zip_file_path, 'wb') as file:
+        file.write(response.content)
+    print(f"Downloaded {version} update.")
+
+    # Extract the update
+    extract_update(zip_file_path)
+
+    # Delete the ZIP file after extraction
+    if os.path.exists(zip_file_path):
+        os.remove(zip_file_path)
+        print(f"Deleted the update ZIP file: {zip_file_path}")
+
+    # Rename and move the new executable to the app's directory
+    new_executable_path = move_updated_executable(version)
+
+    # Restart the app with the new executable path
+    restart_app(new_executable_path)
+
+def move_updated_executable(version):
+    script_directory = get_script_directory()  # Use the new function to get the script's directory
+    new_executable_name = f"Emilys_Cleaning_Hub_{version}.exe"
+    new_executable_path = os.path.join(script_directory, new_executable_name)
+
+    # Move the new executable from the updates folder to the script's directory
+    downloaded_executable_path = os.path.join(DOWNLOAD_FOLDER, "Emilys_Cleaning_Hub.exe")  # Adjust this if necessary
+
+    # Check if the downloaded executable exists and move it
+    if os.path.exists(downloaded_executable_path):
+        shutil.move(downloaded_executable_path, new_executable_path)
+        print(f"Moved {downloaded_executable_path} to {new_executable_path}.")
+        return new_executable_path  # Return the new executable path
+    else:
+        print("Downloaded executable not found, cannot move.")
+        return None  # Return None if not found
+
+def extract_update(zip_file_path):
+    # Unzip the update
+    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+        zip_ref.extractall(DOWNLOAD_FOLDER)  # Extract to the download folder
+    print("Update installed successfully.")
+    return DOWNLOAD_FOLDER  # Return the folder where the update was extracted
+
+def rename_executable(version, extracted_folder):
+    """Rename the new executable to include the version number and move it to the executable location."""
+    old_executable_name = "Emilys_Cleaning_Hub.exe"
+    new_executable_name = f"Emilys_Cleaning_Hub_{version}.exe"
+    
+    # Construct the full paths
+    old_executable_path = os.path.join(extracted_folder, old_executable_name)
+    new_executable_path = os.path.join(extracted_folder, new_executable_name)
+
+    # Rename the executable
+    os.rename(old_executable_path, new_executable_path)
+    print(f"Renamed executable to: {new_executable_name}")
+
+    # Move the new executable to the script/executable location
+    target_path = os.path.join(EXECUTABLE_FOLDER, new_executable_name)
+
+    # Check if the new executable exists before moving
+    if os.path.exists(new_executable_path):
+        shutil.move(new_executable_path, target_path)
+        print(f"Moved executable to: {target_path}")
+        return target_path  # Return the new path for restarting
+    else:
+        print("Error: Renamed executable not found after renaming!")
+        raise FileNotFoundError("Renamed executable not found after renaming.")
+
+def restart_app(new_executable_path):
+    # Restart the app using the new executable path
+    subprocess.Popen([new_executable_path])  # Use the new executable path
+    sys.exit()  # Exit the current process
 
 def create_initial_ini():
     config = configparser.ConfigParser()
@@ -882,6 +1006,9 @@ def on_closing():
 root = tk.Tk()
 root.title("Emily's Super Cleans App")
 
+# Call this function at the start of your app
+check_for_updates()
+
 # Add the "File" menu to the menu bar
 menu_bar = tk.Menu(root)
 root.config(menu=menu_bar)
@@ -904,7 +1031,7 @@ menu_bar.add_cascade(label="Help", menu=help_menu)
 # Add options to the "Help" menu
 help_menu.add_command(label="Help Contents", command=display_help)
 help_menu.add_separator()
-help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App"))
+help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App v1.1"))
 
 load_config()
 
