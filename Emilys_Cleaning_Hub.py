@@ -830,12 +830,6 @@ def view_previous_invoices():
     refresh_button = tk.Button(previous_invoices_window, text="Refresh", command=lambda: reload_previous_invoices(text_widget))
     refresh_button.pack()
 
-# Define the function to exit the application
-def exit_application():
-    # Save any necessary data or perform cleanup before exiting
-    generate_invoice_number("", "")  # Save the current invoice state
-    root.destroy()  # Close the application window
-
 def display_help():
     help_text = """
     Emily's Super Cleans App Help
@@ -1039,6 +1033,17 @@ def on_closing():
     # Delete app_icon.ico file if it exists
     if os.path.exists("app_icon.ico"):
         os.remove("app_icon.ico")
+
+    # Get the script directory (executable folder) dynamically
+    executable_folder = get_script_directory()
+
+    # Get the current version from the app
+    current_version = CURRENT_VERSION
+
+    # Delete old versions of the executable (including versions with and without numbers)
+    delete_old_versions(executable_folder, current_version)
+
+    # Close the app
     root.destroy()
 
 # Now, create the root window and other GUI elements
@@ -1061,7 +1066,7 @@ file_menu.add_separator()
 file_menu.add_command(label="Remove Invoice", command=remove_invoice)
 file_menu.add_command(label="Remove Customer Details", command=remove_customer_details)
 file_menu.add_separator()
-file_menu.add_command(label="Exit", command=exit_application)
+file_menu.add_command(label="Exit", command=on_closing)
 
 # Add the "Help" menu to the menu bar
 help_menu = tk.Menu(menu_bar, tearoff=0)
