@@ -1189,18 +1189,10 @@ def set_data_directory():
             f.write(selected_directory)
         messagebox.showinfo("Success", f"Directory set to:\n{selected_directory}")
 
-# Function to get the directory from the text file
-def get_data_directory():
-    try:
-        with open("data_files_folder_path.txt", "r") as f:
-            return f.read().strip()  # Read and return the path
-    except FileNotFoundError:
-        return None  # Return None if the file doesn't exist
-
 # Existing function to replace data.ini
 def replace_data_ini():
     # Get the directory for data files
-    data_directory = get_data_directory()
+    data_directory = get_script_directory()
     
     if data_directory is None:
         messagebox.showwarning("Warning", "No directory set for data files. Please set the directory first.")
@@ -1232,7 +1224,7 @@ def replace_data_ini():
 # Existing function to replace Data2.ini
 def replace_data2_ini():
     # Get the directory for data files
-    data_directory = get_data_directory()
+    data_directory = get_script_directory()
 
     if data_directory is None:
         messagebox.showwarning("Warning", "No directory set for data files. Please set the directory first.")
