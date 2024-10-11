@@ -15,10 +15,15 @@ import shutil
 import sys
 import subprocess
 import zipfile
+import winshell
+import pythoncom
+from win32com.client import Dispatch
+import tkinter as tk
+from tkinter import ttk, messagebox
 
 # Constants
 GITHUB_API_URL = "https://api.github.com/repos/OEM0VER/ESC/releases/latest"
-CURRENT_VERSION = "v1.1"
+CURRENT_VERSION = "v1.2"
 DOWNLOAD_FOLDER = "updates"  # Folder to store downloaded files
 
 def get_script_directory():
@@ -170,7 +175,23 @@ def rename_executable(version, extracted_folder):
         print("Error: Renamed executable not found after renaming!")
         raise FileNotFoundError("Renamed executable not found after renaming.")
 
+def create_shortcut_to_desktop(target_path, shortcut_name="Emily's Super Cleans.lnk"):
+    """Creates a shortcut to the new executable on the desktop."""
+    desktop = winshell.desktop()  # Get the desktop path
+    shortcut_path = os.path.join(desktop, shortcut_name)  # Define the full path for the shortcut
+    
+    shell = Dispatch('WScript.Shell')
+    shortcut = shell.CreateShortCut(shortcut_path)
+    shortcut.Targetpath = target_path  # Path to the executable
+    shortcut.WorkingDirectory = os.path.dirname(target_path)  # Set the working directory
+    shortcut.IconLocation = target_path  # You can use the executable icon
+    shortcut.save()  # Save the shortcut
+    
+    print(f"Shortcut created: {shortcut_path}")
+
 def restart_app(new_executable_path):
+    # Create the desktop shortcut to the new executable
+    create_shortcut_to_desktop(new_executable_path)
     # Restart the app using the new executable path
     subprocess.Popen([new_executable_path])  # Use the new executable path
     sys.exit()  # Exit the current process
@@ -277,9 +298,18 @@ def fetch_customer_names():
     return customer_names
 
 def get_name_and_date(customer_names):
+    global all_buttons  # Ensure you reference the list of all buttons
+
+    # Disable all buttons before opening the dialog
+    for button in all_buttons:
+        button.config(state=tk.DISABLED)
+
     # Create a Toplevel window for the dialog
     dialog = tk.Toplevel()
     dialog.title("Details")
+
+    # Lock the window so it's not resizable
+    dialog.resizable(False, False)
 
     # Tkinter variables to hold the entered values
     name_var = tk.StringVar()
@@ -290,25 +320,32 @@ def get_name_and_date(customer_names):
         name = name_var.get()
         date = date_var.get()
         dialog.destroy()  # Close the dialog window
+        
+        # Re-enable all buttons after the dialog is closed
+        for button in all_buttons:
+            button.config(state=tk.NORMAL)
+
         return name, date
 
     # Create labels and entry widgets for name and date
-    name_label = tk.Label(dialog, text="Name:")
+    name_label = ttk.Label(dialog, text="Name:")
     name_label.grid(row=0, column=0, padx=10, pady=5)
 
     # Entry widget for entering name
-    name_entry = tk.Entry(dialog, textvariable=name_var)
+    name_entry = ttk.Entry(dialog, textvariable=name_var)
     name_entry.grid(row=0, column=1, padx=10, pady=5)
 
     # Entry widget for date
-    date_label = tk.Label(dialog, text="Date (DD-MM-YYYY):")
+    date_label = ttk.Label(dialog, text="Date (DD-MM-YYYY):")
     date_label.grid(row=1, column=0, padx=10, pady=5)
-    date_entry = tk.Entry(dialog, textvariable=date_var)
+
+    date_entry = ttk.Entry(dialog, textvariable=date_var)
     date_entry.grid(row=1, column=1, padx=10, pady=5)
 
     # Create a button to submit details
-    submit_button = tk.Button(dialog, text="Submit", command=get_details)
+    submit_button = ttk.Button(dialog, text="Submit", command=get_details)
     submit_button.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
+    submit_button.configure(padding=(5, 1))  # Adjust padding for height and width
 
     # Focus on the name entry initially
     name_entry.focus_set()
@@ -317,7 +354,7 @@ def get_name_and_date(customer_names):
     screen_width = dialog.winfo_screenwidth()
     screen_height = dialog.winfo_screenheight()
     dialog_width = 300  # Adjust width as needed
-    dialog_height = 150  # Adjust height as needed
+    dialog_height = 130  # Adjust height as needed
     x = (screen_width - dialog_width) // 2
     y = (screen_height - dialog_height) // 2
     dialog.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
@@ -327,6 +364,11 @@ def get_name_and_date(customer_names):
 
     # Wait for the dialog to be closed
     dialog.wait_window()
+
+    # This part is not necessary because the buttons are already re-enabled in `get_details`.
+    # Just in case we need to re-enable buttons here too
+    for button in all_buttons:
+        button.config(state=tk.NORMAL)
 
     # Retrieve the name and date
     name, date = name_var.get(), date_var.get()
@@ -352,77 +394,43 @@ def add_customer_dialog():
         # Check if all fields are provided
         if name and address and email and payment_frequency:
             save_customer_details(name, address, email, payment_frequency)
-            tk.messagebox.showinfo("Success", "Customer details added successfully.")
+            messagebox.showinfo("Success", "Customer details added successfully.")
             add_window.destroy()
         else:
-            tk.messagebox.showerror("Error", "Please fill in all fields.")
+            messagebox.showerror("Error", "Please fill in all fields.")
 
     add_window = tk.Toplevel()
     add_window.title("Add Customer")
 
-    name_label = tk.Label(add_window, text="Name:")
+    # Labels and entry fields using ttk
+    name_label = ttk.Label(add_window, text="Name:")
     name_label.grid(row=0, column=0, padx=10, pady=5)
-    name_entry = tk.Entry(add_window, textvariable=name_var)
+    name_entry = ttk.Entry(add_window, textvariable=name_var)
     name_entry.grid(row=0, column=1, padx=10, pady=5)
 
-    address_label = tk.Label(add_window, text="Address:")
+    address_label = ttk.Label(add_window, text="Address:")
     address_label.grid(row=1, column=0, padx=10, pady=5)
-    address_entry = tk.Entry(add_window, textvariable=address_var)
+    address_entry = ttk.Entry(add_window, textvariable=address_var)
     address_entry.grid(row=1, column=1, padx=10, pady=5)
 
-    email_label = tk.Label(add_window, text="Email:")
+    email_label = ttk.Label(add_window, text="Email:")
     email_label.grid(row=2, column=0, padx=10, pady=5)
-    email_entry = tk.Entry(add_window, textvariable=email_var)
+    email_entry = ttk.Entry(add_window, textvariable=email_var)
     email_entry.grid(row=2, column=1, padx=10, pady=5)
 
-    payment_frequency_label = tk.Label(add_window, text="Payment Frequency:")
+    payment_frequency_label = ttk.Label(add_window, text="Payment Frequency:")
     payment_frequency_label.grid(row=3, column=0, padx=10, pady=5)
-    payment_frequency_entry = tk.Entry(add_window, textvariable=payment_frequency_var)
+    payment_frequency_entry = ttk.Entry(add_window, textvariable=payment_frequency_var)
     payment_frequency_entry.grid(row=3, column=1, padx=10, pady=5)
 
-    add_button = tk.Button(add_window, text="Add", command=add_customer)
+    # Add button using ttk
+    add_button = ttk.Button(add_window, text="Add", command=add_customer)
     add_button.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
 
+    # Set focus to name entry
     name_entry.focus_set()
 
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    dialog_width = 300
-    dialog_height = 200
-    x = (screen_width - dialog_width) // 2
-    y = (screen_height - dialog_height) // 2
-    add_window.geometry(f"{dialog_width}x{dialog_height}+{x}+{y}")
-
-    def on_window_close():
-        add_window.destroy()
-
-    add_window.protocol("WM_DELETE_WINDOW", on_window_close)  # Handle window close event
-
-    name_label = tk.Label(add_window, text="Name:")
-    name_label.grid(row=0, column=0, padx=10, pady=5)
-    name_entry = tk.Entry(add_window, textvariable=name_var)
-    name_entry.grid(row=0, column=1, padx=10, pady=5)
-
-    address_label = tk.Label(add_window, text="Address:")
-    address_label.grid(row=1, column=0, padx=10, pady=5)
-    address_entry = tk.Entry(add_window, textvariable=address_var)
-    address_entry.grid(row=1, column=1, padx=10, pady=5)
-
-    email_label = tk.Label(add_window, text="Email:")
-    email_label.grid(row=2, column=0, padx=10, pady=5)
-    email_entry = tk.Entry(add_window, textvariable=email_var)
-    email_entry.grid(row=2, column=1, padx=10, pady=5)
-
-    payment_frequency_label = tk.Label(add_window, text="Payment Frequency:")
-    payment_frequency_label.grid(row=3, column=0, padx=10, pady=5)
-    payment_frequency_entry = tk.Entry(add_window, textvariable=payment_frequency_var)
-    payment_frequency_entry.grid(row=3, column=1, padx=10, pady=5)
-
-    add_button = tk.Button(add_window, text="Add", command=add_customer)
-    add_button.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
-
-    name_entry.focus_set()
-
+    # Center the window on the screen
     screen_width = add_window.winfo_screenwidth()
     screen_height = add_window.winfo_screenheight()
     dialog_width = 300
@@ -447,6 +455,12 @@ def save_customer_details(name, address, email, payment_frequency):
 
     with open("Data2.ini", "a") as file:
         file.write(customer_data)
+
+def load_image_from_url(url, size):
+    img_data = fetch_image_with_retry(url)
+    img = Image.open(BytesIO(img_data))
+    img = img.resize(size, Image.LANCZOS)  # Resize the image
+    return ImageTk.PhotoImage(img)
 
 def open_business_email():
     webbrowser.open("https://mail.google.com/mail/u/?authuser=emilyssupercleans@gmail.com")
@@ -476,14 +490,27 @@ def fetch_image_with_retry(image_url):
 
     raise Exception("Max retries exceeded. Unable to fetch image.")
 
-def crop_circle(img, output_size):
-    img = img.resize(output_size, Image.LANCZOS)
-    mask = Image.new("L", img.size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((0, 0) + img.size, fill=255)
-    result = Image.new("RGBA", img.size)
-    result.paste(img, (0, 0), mask)
-    return result
+#def crop_circle(img, output_size):
+    ## Resize the image to the desired output size
+    #img = img.resize(output_size, Image.LANCZOS)
+
+    ## Create a new image with a white background
+    #result = Image.new("RGBA", img.size, (255, 255, 255, 255))
+
+    ## Create a mask for the circular crop
+    #mask = Image.new("L", img.size, 0)
+    #draw = ImageDraw.Draw(mask)
+    
+    ## Draw a filled ellipse on the mask
+    #draw.ellipse((0, 0) + img.size, fill=255)
+
+    ## Paste the image onto the result using the mask
+    #result.paste(img, (0, 0), mask)
+
+    ## Convert result to an RGB image to avoid alpha channel issues
+    #result = result.convert("RGB")
+
+    #return result
 
 def open_url(event):
     webbrowser.open("https://www.facebook.com/people/Emilys-super-cleans/61555658297341/")
@@ -493,21 +520,24 @@ def load_image_and_bind(root):
         image_url = "https://static.wixstatic.com/media/4db758_9c87d89ee5e94ef5b25fe6569fbd0589~mv2.jpg/v1/fit/w_720,h_720,q_90/4db758_9c87d89ee5e94ef5b25fe6569fbd0589~mv2.webp"
         img_data = fetch_image_with_retry(image_url)
         img = Image.open(BytesIO(img_data))
-        output_size = (100, 100)
-        cropped_img = crop_circle(img, output_size)
-        tk_image = ImageTk.PhotoImage(cropped_img)
+        
+        output_size = (100, 100)  # Desired output size (width, height)
+        
+        # Resize the image to the desired output size
+        img = img.resize(output_size, Image.LANCZOS)
+
+        # Convert the image to PhotoImage for Tkinter
+        tk_image = ImageTk.PhotoImage(img)
+        
+        # Create a label to display the image
         img_label = tk.Label(root, image=tk_image, cursor="hand2")
-        img_label.pack(pady=10)
-        img_label.bind("<Button-1>", open_url)
+        img_label.pack(pady=10)  # Pack the label with some padding
+        img_label.bind("<Button-1>", open_url)  # Bind the click event to open the URL
+        
         return tk_image, img_label
     except Exception as e:
         print("Error loading image:", e)
         return None, None
-
-def load_config():
-    if not os.path.exists("Data2.ini"):
-        with open("Data2.ini", "w") as file:
-            file.write("")
 
 def get_last_invoice_number_from_data_ini():
     last_invoice_number = 1000000  # Default starting invoice number
@@ -658,17 +688,22 @@ def get_customer_info():
     return customer_info
 
 customer_details_window_open = False  # Global variable to track the status of the customer details window
+all_buttons = []  # Global list to keep track of buttons to enable/disable
 
 def display_customer_info():
-    global customer_details_window, customer_details_window_open
+    global customer_details_window, customer_details_window_open, all_buttons
     
     # Check if the customer details window is already open
     if customer_details_window_open:
         tk.messagebox.showinfo("Info", "Customer details window is already open.")
         return
-    
+
     # Set the flag to indicate that the window is open
     customer_details_window_open = True
+
+    # Disable all buttons before opening the customer details window
+    for button in all_buttons:
+        button.config(state=tk.DISABLED)
 
     customer_info = get_customer_info()
     customer_details_window = tk.Toplevel()
@@ -680,13 +715,20 @@ def display_customer_info():
         customer_details_window_open = False
         customer_details_window.destroy()
 
+        # Re-enable all buttons after the dialog is closed
+        for button in all_buttons:
+            button.config(state=tk.NORMAL)
+
     customer_details_window.protocol("WM_DELETE_WINDOW", on_window_close)  # Handle window close event
 
-    btn_add_customer = tk.Button(customer_details_window, text="Add Customer", command=add_customer_dialog, cursor="hand2")
-    btn_add_customer.pack(pady=10)
+    # Create buttons using ttk
+    btn_add_customer = ttk.Button(customer_details_window, text="Add Customer", command=add_customer_dialog)
+    btn_add_customer.pack(pady=10, padx=10)  # Adding padding for aesthetics
+    btn_add_customer.configure(padding=(5, 1))  # Adjust padding for height and width
 
-    btn_refresh = tk.Button(customer_details_window, text="Refresh", command=lambda: reload_customer_info(text_widget), cursor="hand2")
-    btn_refresh.pack(pady=10)
+    btn_refresh = ttk.Button(customer_details_window, text="Refresh", command=lambda: reload_customer_info(text_widget))
+    btn_refresh.pack(pady=10, padx=10)  # Adding padding for aesthetics
+    btn_refresh.configure(padding=(5, 1))  # Adjust padding for height and width
 
     app_x = root.winfo_x()
     app_y = root.winfo_y()
@@ -800,19 +842,26 @@ def view_previous_invoices():
     # Set the window to stay on top
     previous_invoices_window.attributes("-topmost", True)
 
+    # Lock the window so it's not resizable
+    previous_invoices_window.resizable(False, False)
+
     # Calculate the position of the window
     app_x = root.winfo_x()  # Get the x-coordinate of the main application window
     app_y = root.winfo_y()  # Get the y-coordinate of the main application window
     app_width = root.winfo_width()  # Get the width of the main application window
 
     window_width = 410  # Set the width of the window
-    window_height = 420  # Set the height of the window
+    window_height = 435  # Set the height of the window
 
     # Calculate the position of the window to be slightly to the right of the main application window
     x = app_x + app_width + 50  # Adjust 50 for the desired offset
     y = app_y + (root.winfo_height() - window_height) // 2  # Center vertically
 
     previous_invoices_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+    # Create a frame to hold the text widget and scrollbar
+    frame = ttk.Frame(previous_invoices_window)
+    frame.pack(fill=tk.BOTH, expand=True)
 
     # Create a text widget to display invoices with scrollbars
     text_widget = tk.Text(previous_invoices_window, wrap=tk.WORD)
@@ -826,9 +875,9 @@ def view_previous_invoices():
     # Reload and display previous invoices
     reload_previous_invoices(text_widget)
 
-    # Add a "Refresh" button
-    refresh_button = tk.Button(previous_invoices_window, text="Refresh", command=lambda: reload_previous_invoices(text_widget))
-    refresh_button.pack()
+    # Add a "Refresh" button using ttk
+    refresh_button = ttk.Button(previous_invoices_window, text="Refresh", command=lambda: reload_previous_invoices(text_widget))
+    refresh_button.pack(pady=10)  # Add padding for better spacing
 
 def display_help():
     help_text = """
@@ -837,19 +886,35 @@ def display_help():
     This application allows you to create invoices and manage customer details.
 
     Usage:
-    1. Click on "Create Invoice No." to generate a new invoice number.
-    2. Click on "Manage Customer Details" to view and add customer information.
-    3. Click on "Open Business Email" to open the business email in a web browser.
+    1. Click on "Manage Customer Details" to view and add customer information.
+    2. Click on "Create Invoice No." to generate a new invoice number.
     3. Click on "Open Invoice Template Folder" to open the folder containing invoice templates.
+    4. Click on "GMail" to open the business email in your browser.
+    5. Click on "GDocs" to open Google Docs in your browser, for creating invoices.
+
+    File:
+    1. View Previous Invoices: Click to view the history of all previous invoices.
+    2. Remove Invoice: Click to delete an existing invoice from the system.
+    3. Remove Customer Details: Click to remove customer details from the database.
+    4. Import/Replace data.ini: Click to import or replace the data.ini file with another file.
+    5. Import/Replace Data2.ini: Click to import or replace the Data2.ini file with another file.
+    6. Exit: Click to safely close and exit the application.
 
     Key Bindings:
-    - Ctrl+F: Search for a customer (available in the customer details window)
+    - Ctrl+F: Search for a customer (available in the customer details window).
 
     """
     help_window = tk.Toplevel()
     help_window.title("Help")
 
-    help_label = tk.Label(help_window, text=help_text, justify=tk.LEFT)
+    # Set the background color of the help window to white
+    help_window.configure(bg="white")
+    
+    # Lock the window so it's not resizable
+    help_window.resizable(False, False)
+
+    # Create a label with a white background and black text
+    help_label = tk.Label(help_window, text=help_text, justify=tk.LEFT, bg="white", fg="black", wraplength=500)  # Added wraplength for better text display
     help_label.pack(padx=10, pady=10)
 
     # Calculate the position of the help window
@@ -859,7 +924,7 @@ def display_help():
     main_window_height = root.winfo_height()
 
     help_window_width = 520
-    help_window_height = 210
+    help_window_height = 350
 
     help_window_x = main_window_x - help_window_width - 20  # Adjust 20 for some spacing
     help_window_y = main_window_y + (main_window_height - help_window_height) // 2
@@ -871,16 +936,30 @@ def display_help():
     help_window.lift()  # Bring the help window to the top
     help_window.attributes("-topmost", True)  # Ensure help window stays on top of the main window
 
-    # Function definitions
+######
 
+# Define the function to remove an invoice
 def remove_invoice():
     # Create a Toplevel window for the remove invoice dialog
     remove_dialog = tk.Toplevel()
     remove_dialog.title("Remove Invoice")
 
-    # Create a listbox to display the invoices
-    invoice_listbox = tk.Listbox(remove_dialog, width=50)
-    invoice_listbox.pack(padx=10, pady=10)
+    # Lock the window so it's not resizable
+    remove_dialog.resizable(False, False)
+
+    # Create a frame to hold the Listbox and the scrollbar
+    frame = ttk.Frame(remove_dialog)
+    frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+    # Create a listbox to display the invoices using ttk
+    invoice_listbox = tk.Listbox(frame, width=50, height=10)  # You can adjust the height as needed
+    invoice_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+    # Create a vertical scrollbar for the listbox using ttk
+    scrollbar_y = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=invoice_listbox.yview)
+    scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+    invoice_listbox.config(yscrollcommand=scrollbar_y.set)
 
     # Function to populate the listbox with invoice details from data.ini
     def populate_invoice_list():
@@ -909,23 +988,43 @@ def remove_invoice():
                 # Read invoice details from data.ini
                 config = configparser.ConfigParser()
                 config.read('data.ini')
+
                 # Remove the corresponding invoice from data.ini
                 section_to_remove = invoice_listbox.get(selected_index)
                 invoice_number = section_to_remove.split("Invoice Number: ")[1].split(",")[0].strip()
+    
+                # Remove the invoice section from the config
                 config.remove_section(f'Invoice{invoice_number}')
+
+                # Check if any invoices remain and update LastInvoice accordingly
+                invoice_numbers = []
+                for section in config.sections():
+                    if 'invoicenumber' in config[section]:
+                        invoice_numbers.append(int(config[section]['invoicenumber']))
+
+                if invoice_numbers:
+                    # Set LastInvoice to the maximum invoicenumber remaining
+                    config['LastInvoice']['number'] = str(max(invoice_numbers))
+                else:
+                    # If no invoices left, reset LastInvoice to 0
+                    config['LastInvoice']['number'] = '0'
+
+                # Write the updated config back to the file
                 with open('data.ini', 'w') as configfile:
                     config.write(configfile)
+
                 # Remove the selected invoice from the listbox
                 invoice_listbox.delete(selected_index)
+
             except Exception as e:
                 messagebox.showerror("Error", f"An error occurred: {e}")
 
-    # Button to remove selected invoice
-    remove_button = tk.Button(remove_dialog, text="Remove Selected Invoice", command=remove_selected_invoice)
+    # Button to remove selected invoice using ttk
+    remove_button = ttk.Button(remove_dialog, text="Remove Selected Invoice", command=remove_selected_invoice)
     remove_button.pack(pady=5)
 
-    # Button to close the remove invoice dialog
-    close_button = tk.Button(remove_dialog, text="Close", command=remove_dialog.destroy)
+    # Button to close the remove invoice dialog using ttk
+    close_button = ttk.Button(remove_dialog, text="Close", command=remove_dialog.destroy)
     close_button.pack(pady=5)
 
     # Calculate the position to center the dialog underneath the main window
@@ -934,7 +1033,7 @@ def remove_invoice():
     app_width = root.winfo_width()  # Get the width of the main application window
     app_height = root.winfo_height()  # Get the height of the main application window
 
-    dialog_width = 300  # Adjust width as needed
+    dialog_width = 340  # Adjust width as needed
     dialog_height = 260  # Adjust height as needed
     x = app_x + (app_width - dialog_width) // 2
     y = app_y + app_height + 60  # Place the dialog 50 pixels below the main window
@@ -946,6 +1045,8 @@ def remove_invoice():
 
     # Wait for the dialog to be closed
     remove_dialog.wait_window()
+
+#########
 
 def remove_customer_details():
     # Function to fetch customer names
@@ -959,14 +1060,17 @@ def remove_customer_details():
         # Create a new window for selecting the customer to remove
         remove_window = tk.Toplevel(root)
         remove_window.title("Remove Customer")
+
+        # Lock the window so it's not resizable
+        remove_window.resizable(False, False)
         
         # Calculate the position of the new window
         root_x = root.winfo_rootx()
         root_y = root.winfo_rooty()
         root_width = root.winfo_width()
         root_height = root.winfo_height()
-        remove_window_width = 165  # Adjust according to your needs
-        remove_window_height = 195  # Adjust according to your needs
+        remove_window_width = 195  # Adjust according to your needs
+        remove_window_height = 225  # Adjust according to your needs
         x = root_x + root_width // 2 - remove_window_width // 2
         y = root_y + root_height + 50  # Place the new window 50 pixels below the main window
 
@@ -976,11 +1080,21 @@ def remove_customer_details():
         # Keep the new window on top of other windows
         remove_window.attributes('-topmost', True)
 
+        # Create a frame to hold the Listbox and the scrollbar
+        frame = tk.Frame(remove_window)
+        frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
         # Create a Listbox to display the customer names
-        listbox = tk.Listbox(remove_window)
+        listbox = tk.Listbox(frame)
         for name in customer_names:
             listbox.insert(tk.END, name)
-        listbox.pack()
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Create a vertical scrollbar for the Listbox
+        scrollbar_y = tk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
+        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+        listbox.config(yscrollcommand=scrollbar_y.set)
 
         # Function to handle the removal of the selected customer
         def remove_selected_customer():
@@ -1004,8 +1118,9 @@ def remove_customer_details():
                 tk.messagebox.showinfo("No Selection", "Please select a customer to remove.")
 
         # Button to remove the selected customer
-        remove_button = tk.Button(remove_window, text="Remove Selected Customer", command=remove_selected_customer)
-        remove_button.pack()  # Pack the button below the listbox
+        remove_button = ttk.Button(remove_window, text="Remove Selected Customer", command=remove_selected_customer)
+        remove_button.pack(pady=5)  # Pack the button below the listbox
+        remove_button.configure(padding=(1, 1))
     else:
         tk.messagebox.showinfo("No Customers", "No customer details found.")
 
@@ -1029,6 +1144,123 @@ def open_invoice_template_folder():
     else:
         tk.messagebox.showerror("Error", "Invoice template folder not found!")
 
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.tooltip_delay = 500  # Delay in milliseconds
+        self.tooltip_id = None  # To hold the ID for the tooltip after call
+        
+        # Bind mouse events to show and hide the tooltip
+        self.widget.bind("<Enter>", self.schedule_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def schedule_tooltip(self, event=None):
+        self.tooltip_id = self.widget.after(self.tooltip_delay, self.show_tooltip)
+
+    def show_tooltip(self, event=None):
+        if self.tooltip_window is not None:
+            return  # Tooltip is already shown
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.wm_overrideredirect(True)  # Remove window decorations
+        self.tooltip_window.wm_geometry(f"+{x}+{y}")  # Position tooltip
+        label = tk.Label(self.tooltip_window, text=self.text, background="white", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip_id is not None:
+            self.widget.after_cancel(self.tooltip_id)  # Cancel the scheduled tooltip
+            self.tooltip_id = None
+        if self.tooltip_window is not None:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+
+# Function to set the directory for data files
+def set_data_directory():
+    # Open a directory dialog
+    selected_directory = filedialog.askdirectory(title="Select Directory for data.ini and Data2.ini files")
+    
+    if selected_directory:  # If a directory is selected
+        # Save the selected path to data_files_folder_path.txt
+        with open("data_files_folder_path.txt", "w") as f:
+            f.write(selected_directory)
+        messagebox.showinfo("Success", f"Directory set to:\n{selected_directory}")
+
+# Function to get the directory from the text file
+def get_data_directory():
+    try:
+        with open("data_files_folder_path.txt", "r") as f:
+            return f.read().strip()  # Read and return the path
+    except FileNotFoundError:
+        return None  # Return None if the file doesn't exist
+
+# Existing function to replace data.ini
+def replace_data_ini():
+    # Get the directory for data files
+    data_directory = get_data_directory()
+    
+    if data_directory is None:
+        messagebox.showwarning("Warning", "No directory set for data files. Please set the directory first.")
+        return
+
+    # Define the path for the existing data.ini
+    existing_file = os.path.join(data_directory, 'data.ini')
+
+    # Open a file dialog for the user to select their own data.ini file
+    new_file_path = filedialog.askopenfilename(
+        title="Select your data.ini file",
+        filetypes=(("INI files", "*.ini"), ("All files", "*.*"))
+    )
+    
+    if new_file_path:  # If the user selects a file
+        # Check if the selected file has the same name as data.ini
+        if os.path.basename(new_file_path) == "data.ini":
+            try:
+                # Replace the existing data.ini with the new file
+                shutil.copyfile(new_file_path, existing_file)
+                messagebox.showinfo("Success", "data.ini has been replaced successfully.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to replace data.ini: {str(e)}")
+        else:
+            messagebox.showwarning("Warning", "You can only replace 'data.ini' with a file named 'data.ini'.")
+    else:
+        messagebox.showwarning("Warning", "No file selected.")
+
+# Existing function to replace Data2.ini
+def replace_data2_ini():
+    # Get the directory for data files
+    data_directory = get_data_directory()
+
+    if data_directory is None:
+        messagebox.showwarning("Warning", "No directory set for data files. Please set the directory first.")
+        return
+
+    # Define the path for the existing Data2.ini
+    existing_file = os.path.join(data_directory, 'Data2.ini')
+
+    # Open a file dialog for the user to select their own Data2.ini file
+    new_file_path = filedialog.askopenfilename(
+        title="Select your Data2.ini file",
+        filetypes=(("INI files", "*.ini"), ("All files", "*.*"))
+    )
+    
+    if new_file_path:  # If the user selects a file
+        # Check if the selected file has the same name as Data2.ini
+        if os.path.basename(new_file_path) == "Data2.ini":
+            try:
+                # Replace the existing Data2.ini with the new file
+                shutil.copyfile(new_file_path, existing_file)
+                messagebox.showinfo("Success", "Data2.ini has been replaced successfully.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to replace Data2.ini: {str(e)}")
+        else:
+            messagebox.showwarning("Warning", "You can only replace 'Data2.ini' with a file named 'Data2.ini'.")
+    else:
+        messagebox.showwarning("Warning", "No file selected.")
+
 def on_closing():
     # Delete app_icon.ico file if it exists
     if os.path.exists("app_icon.ico"):
@@ -1049,6 +1281,10 @@ def on_closing():
 # Now, create the root window and other GUI elements
 root = tk.Tk()
 root.title("Emily's Super Cleans App")
+root.resizable(False, False)
+
+# Set the background color of the main window to white
+root.configure(bg='white')
 
 # Call this function at the start of your app
 check_for_updates()
@@ -1066,6 +1302,9 @@ file_menu.add_separator()
 file_menu.add_command(label="Remove Invoice", command=remove_invoice)
 file_menu.add_command(label="Remove Customer Details", command=remove_customer_details)
 file_menu.add_separator()
+file_menu.add_command(label="Import/Replace data.ini", command=replace_data_ini)
+file_menu.add_command(label="Import/Replace Data2.ini", command=replace_data2_ini)
+file_menu.add_separator()
 file_menu.add_command(label="Exit", command=on_closing)
 
 # Add the "Help" menu to the menu bar
@@ -1075,12 +1314,12 @@ menu_bar.add_cascade(label="Help", menu=help_menu)
 # Add options to the "Help" menu
 help_menu.add_command(label="Help Contents", command=display_help)
 help_menu.add_separator()
-help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App v1.1"))
+help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App v1.2"))
 
 load_config()
 
 window_width = 320
-window_height = 380
+window_height = 390
 
 screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
@@ -1098,23 +1337,91 @@ icon_img = Image.open(BytesIO(icon_response.content))
 icon_img.save("app_icon.ico")
 root.iconbitmap("app_icon.ico")
 
-btn_manage_customer_details = tk.Button(root, text="Manage Customer Details", command=display_customer_info, cursor="hand2")
+# Load the Gdocs image from the URL
+image_url = "https://static.wixstatic.com/media/4db758_07abf706a4eb4fa492e4567a20fba20d~mv2.png/v1/fit/w_720,h_720,q_90/4db758_07abf706a4eb4fa492e4567a20fba20d~mv2.webp"  # Replace with your image URL
+desired_size = (50, 50)  # Set your desired size here
+google_docs_image = load_image_from_url(image_url, desired_size)
+
+# Load the Gdocs image from the URL
+image_url = "https://static.wixstatic.com/media/4db758_12e100f80b6343aba735c4bb60647a7e~mv2.png/v1/fit/w_720,h_720,q_90/4db758_12e100f80b6343aba735c4bb60647a7e~mv2.webp"  # Replace with your image URL
+desired_size = (50, 50)  # Set your desired size here
+google_mail_image = load_image_from_url(image_url, desired_size)
+
+# Create a style for the ttk buttons
+style = ttk.Style()
+style.configure("TButton",
+                padding=(10, 1),  # Adjust horizontal and vertical padding
+                relief="flat",  # Flat relief for modern look
+                #background="#FFFFF",  # Button color
+                foreground="black",  # Text color
+                font=("Helvetica", 11))  # Adjust font size
+
+# Create ttk buttons using the defined style
+# Frame for buttons that need to be side by side
+button_frame = ttk.Frame(root)
+button_frame.pack(pady=10)
+
+# Existing buttons
+btn_manage_customer_details = ttk.Button(root, text="Manage Customer Details", command=display_customer_info, style="TButton")
 btn_manage_customer_details.pack(pady=10)
+btn_manage_customer_details.configure(cursor="hand2")  # Set the cursor to hand2
 
-btn_create_invoice = tk.Button(root, text="Create Invoice No.", command=lambda: create_invoice(img_label), cursor="hand2")
+btn_create_invoice = ttk.Button(root, text="Create Invoice No.", command=lambda: create_invoice(img_label), style="TButton")
 btn_create_invoice.pack(pady=10)
+btn_create_invoice.configure(cursor="hand2")
 
-btn_open_business_email = tk.Button(root, text="Open Business Email", command=open_business_email, cursor="hand2")
-btn_open_business_email.pack(pady=10)
-
-btn_open_business_email = tk.Button(root, text="Open Google Docs", command=open_google_docs, cursor="hand2")
-btn_open_business_email.pack(pady=10)
-
-btn_open_template_folder = tk.Button(root, text="Open Invoice Template Folder", command=open_invoice_template_folder, cursor="hand2")
+btn_open_template_folder = ttk.Button(root, text="Open Invoice Template Folder", command=open_invoice_template_folder, style="TButton")
 btn_open_template_folder.pack(pady=10)
+btn_open_template_folder.configure(cursor="hand2")
+
+# Create a custom style for the button frame
+style = ttk.Style()
+style.configure("TFrame", background="white")  # Set the background of the frame style
+
+# Frame for buttons that need to be side by side at the bottom
+button_frame = ttk.Frame(root, style="TFrame")  # Apply the style here
+button_frame.pack(pady=10)
+
+# Function to change the cursor to hand2 when hovering
+def on_enter(event):
+    event.widget.config(cursor="hand2")  # Change cursor to hand2
+
+def on_leave(event):
+    event.widget.config(cursor="")  # Reset to default cursor
+
+# Create the business email button
+btn_open_business_email = ttk.Button(button_frame, image=google_mail_image, command=open_business_email, style="TButton")
+btn_open_business_email.pack(side=tk.LEFT, padx=5)  # Add padding on the sides
+
+# Access the underlying tk widget to set cursor behavior
+btn_open_business_email.bind("<Enter>", lambda e: btn_open_business_email.state(['!disabled']) or btn_open_business_email.config(cursor="hand2"))
+btn_open_business_email.bind("<Leave>", lambda e: btn_open_business_email.config(cursor=""))
+
+# Create tooltip for the email button
+#email_tooltip = ToolTip(btn_open_business_email, "Open Business Email")
+
+# Create the Google Docs button
+btn_open_google_docs = ttk.Button(button_frame, image=google_docs_image, command=open_google_docs, style="TButton")
+btn_open_google_docs.pack(side=tk.LEFT, padx=5)  # Add padding on the sides
+
+# Access the underlying tk widget to set cursor behavior
+btn_open_google_docs.bind("<Enter>", lambda e: btn_open_google_docs.state(['!disabled']) or btn_open_google_docs.config(cursor="hand2"))
+btn_open_google_docs.bind("<Leave>", lambda e: btn_open_google_docs.config(cursor=""))
+
+# Create tooltip for the Google Docs button
+#docs_tooltip = ToolTip(btn_open_google_docs, "Open Google Docs")
+
+# List of all buttons for easier management
+all_buttons = [
+    btn_manage_customer_details,
+    btn_create_invoice,
+    btn_open_template_folder,
+    btn_open_business_email,
+    btn_open_google_docs
+]
 
 # Add a watermark label at the bottom of the root window
-watermark_label = tk.Label(root, text="Designed & Created by: M0VER", bg="#f0f0f0", fg="gray")
+watermark_label = tk.Label(root, text="Designed & Created by: M0VER", bg="#ffffff", fg="gray")
 watermark_label.pack(side=tk.BOTTOM, pady=5)
 
 root.protocol("WM_DELETE_WINDOW", on_closing)
