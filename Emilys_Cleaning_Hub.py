@@ -20,10 +20,11 @@ import pythoncom
 from win32com.client import Dispatch
 import tkinter as tk
 from tkinter import ttk, messagebox
+import socket
 
 # Constants
 GITHUB_API_URL = "https://api.github.com/repos/OEM0VER/ESC/releases/latest"
-CURRENT_VERSION = "v1.2"
+CURRENT_VERSION = "v1.3"
 DOWNLOAD_FOLDER = "updates"  # Folder to store downloaded files
 
 def get_script_directory():
@@ -787,10 +788,6 @@ def set_customer_details_window_open(open_status):
     global customer_details_window_open
     customer_details_window_open = open_status
 
-def on_closing():
-    generate_invoice_number("", "")
-    root.destroy()
-
 # Define the function to reload and display previous invoices
 def reload_previous_invoices(text_widget):
     text_widget.config(state=tk.NORMAL)
@@ -1253,7 +1250,79 @@ def replace_data2_ini():
     else:
         messagebox.showwarning("Warning", "No file selected.")
 
+# Get the computer name
+pc_name = socket.gethostname()
+
+# File to store window position data
+position_file = "window_position.txt"
+
+def save_window_position(root):
+    # Get current window position and screen number
+    x, y = root.winfo_x(), root.winfo_y()
+    screen_number = root.winfo_screen()
+    
+    # Save to file
+    with open(position_file, "w") as file:
+        file.write(f"{pc_name},{screen_number},{x},{y}\n")
+
+def load_window_position(root):
+    # Check if position file exists
+    if os.path.exists(position_file):
+        with open(position_file, "r") as file:
+            for line in file:
+                saved_pc, saved_screen, saved_x, saved_y = line.strip().split(',')
+                
+                # If the saved PC name matches current one
+                if saved_pc == pc_name:
+                    # Move to saved position
+                    root.geometry(f"+{saved_x}+{saved_y}")
+                    break
+
+def read_position():
+    pc_name = socket.gethostname()
+    if os.path.exists("window_position.txt"):
+        with open("window_position.txt", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                parts = line.strip().split(",")
+                if len(parts) == 4 and parts[0] == pc_name:
+                    try:
+                        return int(parts[2]), int(parts[3])  # x, y coordinates
+                    except ValueError:
+                        pass
+    # Default position if no match found
+    return 100, 100  # Adjust default as desired
+
+def save_position(event=None):
+    x = root.winfo_x()
+    y = root.winfo_y()
+    pc_name = socket.gethostname()
+    
+    # Check if the position for this PC already exists
+    updated = False
+    lines = []
+    
+    if os.path.exists("window_position.txt"):
+        with open("window_position.txt", "r") as f:
+            lines = f.readlines()
+    
+    # Create or update the line for this PC
+    with open("window_position.txt", "w") as f:
+        found = False
+        for line in lines:
+            parts = line.strip().split(",")
+            if len(parts) == 4 and parts[0] == pc_name:
+                f.write(f"{pc_name},:0.0,{x},{y}\n")  # Update the existing line
+                found = True
+            else:
+                f.write(line)  # Keep existing lines for other PCs
+        if not found:
+            f.write(f"{pc_name},:0.0,{x},{y}\n")  # Add a new line for this PC if not found
+
 def on_closing():
+    # Save the position before closing
+    save_position()
+    
     # Delete app_icon.ico file if it exists
     if os.path.exists("app_icon.ico"):
         os.remove("app_icon.ico")
@@ -1306,19 +1375,16 @@ menu_bar.add_cascade(label="Help", menu=help_menu)
 # Add options to the "Help" menu
 help_menu.add_command(label="Help Contents", command=display_help)
 help_menu.add_separator()
-help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App v1.2"))
+help_menu.add_command(label="About", command=lambda: tk.messagebox.showinfo("About", "Emily's Super Cleans App v1.3"))
 
 load_config()
-
-window_width = 320
-window_height = 390
 
 screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
 
-x = (screen_width // 2) - (window_width // 2)
-y = (screen_height // 2) - (window_height // 2)
-
+# Retrieve position and set geometry
+window_width, window_height = 320, 390
+x, y = read_position()
 root.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
 tk_image, img_label = load_image_and_bind(root)
@@ -1416,6 +1482,10 @@ all_buttons = [
 watermark_label = tk.Label(root, text="Designed & Created by: M0VER", bg="#ffffff", fg="gray")
 watermark_label.pack(side=tk.BOTTOM, pady=5)
 
+# Load saved position if available
+load_window_position(root)
+
+# Bind close event
 root.protocol("WM_DELETE_WINDOW", on_closing)
 
 root.mainloop()
